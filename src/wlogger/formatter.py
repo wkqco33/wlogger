@@ -12,15 +12,28 @@ _LEVEL_COLORS = {
     logging.CRITICAL: "\033[1;31m", # 굵은 빨강
 }
 
+# "CRITICAL" is the longest level name (8 chars); pad every level to that
+# width so columns line up, matching the format documented in README.md.
+_LEVEL_WIDTH = max(len(name) for name in logging.getLevelNamesMapping())
+
 
 class ColorFormatter(logging.Formatter):
+    def __init__(self, *, use_color: bool = True) -> None:
+        super().__init__()
+        self.use_color = use_color
+
     def format(self, record: logging.LogRecord) -> str:
-        color = _LEVEL_COLORS.get(record.levelno, "")
         timestamp = self.formatTime(record, "%Y-%m-%d %H:%M:%S")
-        level = record.levelname
+        level = record.levelname.ljust(_LEVEL_WIDTH)
         msg = record.getMessage()
 
-        line = f"[{timestamp}] {color}[{level}]{_RESET} [{record.name}] {msg}"
+        if self.use_color:
+            color = _LEVEL_COLORS.get(record.levelno, "")
+            level_field = f"{color}[{level}]{_RESET}"
+        else:
+            level_field = f"[{level}]"
+
+        line = f"[{timestamp}] {level_field} [{record.name}] {msg}"
 
         if record.exc_info:
             line += "\n" + self.formatException(record.exc_info)
@@ -34,7 +47,7 @@ class JsonFormatter(logging.Formatter):
         "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
         "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
         "created", "msecs", "relativeCreated", "thread", "threadName",
-        "processName", "process", "message"
+        "processName", "process", "message", "taskName",
     }
 
     def format(self, record: logging.LogRecord) -> str:

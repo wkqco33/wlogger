@@ -1,11 +1,29 @@
 import logging
-from typing import Literal
+from typing import Literal, TextIO
 
 from .handler import make_console_handler, make_file_handler
 
 __all__ = ["setup", "get_logger"]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+# Explicit rather than routing through logging.getLevelName(), whose
+# name -> number direction is a legacy, easy-to-misuse overload of the same
+# function that also does number -> name.
+_LEVELS: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
+
+def _to_numeric(lvl: LogLevel | str) -> int:
+    try:
+        return _LEVELS[lvl.upper()]
+    except KeyError:
+        raise ValueError(f"유효하지 않은 로그 레벨: {lvl!r}") from None
 
 
 def setup(
@@ -15,6 +33,7 @@ def setup(
     file_level: LogLevel | None = None,
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
+    console_stream: TextIO | None = None,
 ) -> None:
     """루트 로거를 설정한다. 프로세스 시작 시 한 번만 호출하면 된다.
 
@@ -25,26 +44,25 @@ def setup(
         file_level: 파일 전용 레벨. 생략 시 level 사용.
         max_bytes: 로그 파일 최대 크기 (bytes). 기본 10MB.
         backup_count: 보관할 로테이션 파일 수. 기본 5개.
+        console_stream: 콘솔 출력 대상 스트림. 생략 시 sys.stderr.
     """
-    def _to_numeric(lvl: LogLevel | str) -> int:
-        num = logging.getLevelName(lvl.upper())
-        if not isinstance(num, int):
-            raise ValueError(f"유효하지 않은 로그 레벨: {lvl!r}")
-        return num
-
     root_lvl = _to_numeric(level)
     c_lvl = _to_numeric(console_level) if console_level else root_lvl
     f_lvl = _to_numeric(file_level) if file_level else root_lvl
 
     root = logging.getLogger()
-    if root.handlers:
-        root.handlers.clear()
+    for handler in root.handlers:
+        # Close before dropping the reference so a re-configured file
+        # handler (e.g. RotatingFileHandler) doesn't leak its file
+        # descriptor until garbage collection gets around to it.
+        handler.close()
+    root.handlers.clear()
 
     # 루트 레벨은 가장 낮은 것으로 설정 (핸들러에서 각각 필터링)
     root.setLevel(min(root_lvl, c_lvl, f_lvl) if log_file else c_lvl)
 
     # 콘솔 핸들러 추가
-    root.addHandler(make_console_handler(c_lvl))
+    root.addHandler(make_console_handler(c_lvl, stream=console_stream))
 
     # 파일 핸들러 추가 (설정된 경우)
     if log_file is not None:

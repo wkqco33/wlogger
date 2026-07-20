@@ -73,19 +73,29 @@ except ZeroDivisionError:
 def setup(
     level: str = "INFO",
     log_file: str | None = None,
+    console_level: str | None = None,
+    file_level: str | None = None,
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
+    console_stream: TextIO | None = None,
 ) -> None
 ```
 
-루트 로거를 설정한다. 재호출 시 기존 핸들러를 교체한다.
+루트 로거를 설정한다. 재호출 시 기존 핸들러를 닫고 교체한다.
 
 | 파라미터 | 기본값 | 설명 |
 |---------|--------|------|
 | `level` | `"INFO"` | 로그 레벨 (`"DEBUG"`, `"INFO"`, `"WARNING"`, `"ERROR"`, `"CRITICAL"`) |
 | `log_file` | `None` | 파일 출력 경로. `None`이면 콘솔만 출력 |
+| `console_level` | `None` | 콘솔 전용 레벨. 생략 시 `level` 사용 |
+| `file_level` | `None` | 파일 전용 레벨. 생략 시 `level` 사용 |
 | `max_bytes` | `10485760` | 로그 파일 최대 크기 (bytes) |
 | `backup_count` | `5` | 보관할 로테이션 파일 수 |
+| `console_stream` | `None` | 콘솔 출력 대상. 생략 시 `sys.stderr` |
+
+콘솔 핸들러는 항상 **stderr**로 출력한다 — 로그는 진단용 출력이므로, 애플리케이션이 stdout으로 내보내는 실제 결과물(파이프, 스크립팅, JSON 출력 등)과 섞이지 않는다.
+
+색상 코드는 출력 대상이 실제 터미널일 때(`isatty()`)만 붙는다. 파일로 리다이렉트되거나 파이프로 연결된 경우, 또는 `NO_COLOR` 환경변수가 설정된 경우 색상 없이 출력된다.
 
 ### `wlogger.get_logger()`
 
@@ -94,6 +104,18 @@ def get_logger(name: str) -> logging.Logger
 ```
 
 이름으로 로거를 반환한다. `logging.getLogger(name)` 의 래퍼.
+
+## 개발 및 테스트
+
+```bash
+# 의존성 동기화 (pytest 포함, dev 그룹)
+uv sync
+
+# 테스트 실행
+uv run pytest
+```
+
+`pytest`는 `dev` 의존성 그룹으로만 선언되어 있다. `uv run pytest`는 프로젝트 전용 `.venv`(현재 패키지가 editable로 설치된 환경)에서 실행되므로, 시스템에 별도로 설치된 `pytest`와 섞이지 않는다.
 
 ## Build & Deploy
 

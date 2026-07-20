@@ -1,15 +1,30 @@
 import logging
 import logging.handlers
+import os
 import sys
 from pathlib import Path
+from typing import TextIO
 
 from .formatter import ColorFormatter, JsonFormatter
 
 
-def make_console_handler(level: int = logging.DEBUG) -> logging.StreamHandler:
-    handler = logging.StreamHandler(sys.stdout)
+def _supports_color(stream: TextIO) -> bool:
+    if os.environ.get("NO_COLOR"):
+        return False
+    isatty = getattr(stream, "isatty", None)
+    return bool(callable(isatty) and isatty())
+
+
+def make_console_handler(
+    level: int = logging.DEBUG, *, stream: TextIO | None = None
+) -> logging.StreamHandler:
+    # Logs are diagnostic output, not program output: default to stderr so
+    # stdout stays clean for whatever the application actually produces
+    # (piping, scripting, JSON output, ...).
+    target = stream if stream is not None else sys.stderr
+    handler = logging.StreamHandler(target)
     handler.setLevel(level)
-    handler.setFormatter(ColorFormatter())
+    handler.setFormatter(ColorFormatter(use_color=_supports_color(target)))
     return handler
 
 
