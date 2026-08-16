@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +36,14 @@ class SetupTests(unittest.TestCase):
     def test_invalid_level_raises_value_error(self) -> None:
         with self.assertRaises(ValueError):
             wlogger.setup(level="BOGUS")
+
+    def test_non_positive_max_bytes_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            wlogger.setup(level="INFO", log_file="app.log", max_bytes=0)
+
+    def test_negative_backup_count_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            wlogger.setup(level="INFO", log_file="app.log", backup_count=-1)
 
     def test_console_handler_defaults_to_stderr(self) -> None:
         wlogger.setup(level="INFO")
@@ -106,6 +115,56 @@ class SetupTests(unittest.TestCase):
 
             self.assertIsNone(first_handler.stream)
 
+    def test_console_and_file_levels_are_applied_independently(self) -> None:
+        stream = _FakeStream(isatty=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir, "app.log")
+            wlogger.setup(
+                level="INFO",
+                console_level="ERROR",
+                file_level="DEBUG",
+                log_file=str(log_path),
+                console_stream=stream,
+            )
+            logger = wlogger.get_logger("test.level.split")
+
+            logger.info("info-only-file")
+            logger.error("error-both")
+
+            file_lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+
+        self.assertNotIn("info-only-file", stream.getvalue())
+        self.assertIn("error-both", stream.getvalue())
+        file_payloads = [json.loads(line) for line in file_lines]
+        self.assertIn("info-only-file", [p["message"] for p in file_payloads])
+        self.assertIn("error-both", [p["message"] for p in file_payloads])
+
+    def test_root_level_uses_lowest_when_file_logging_is_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir, "app.log")
+            wlogger.setup(level="WARNING", console_level="ERROR", file_level="DEBUG", log_file=str(log_path))
+            root = logging.getLogger()
+        self.assertEqual(root.level, logging.DEBUG)
+
+    def test_file_rotation_creates_backup_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir, "rotate.log")
+            wlogger.setup(
+                level="DEBUG",
+                log_file=str(log_path),
+                max_bytes=200,
+                backup_count=2,
+                console_stream=_FakeStream(isatty=False),
+            )
+            logger = wlogger.get_logger("test.rotation")
+            for i in range(200):
+                logger.info("msg-%03d %s", i, "x" * 80)
+
+            rotated_1 = Path(tmpdir, "rotate.log.1")
+            rotated_2 = Path(tmpdir, "rotate.log.2")
+            self.assertTrue(rotated_1.exists())
+            self.assertTrue(rotated_2.exists())
+
 
 class ColorFormatterTests(unittest.TestCase):
     def _record(self, level: int = logging.DEBUG) -> logging.LogRecord:
@@ -129,8 +188,32 @@ class ColorFormatterTests(unittest.TestCase):
         line = formatter.format(self._record())
         self.assertIn("\033[", line)
 
+    def test_exc_info_is_rendered_in_console_line(self) -> None:
+        formatter = ColorFormatter(use_color=False)
+        try:
+            raise RuntimeError("boom")
+        except RuntimeError:
+            record = logging.LogRecord(
+                "myapp", logging.ERROR, __file__, 10, "failed", None, sys.exc_info()
+            )
+        line = formatter.format(record)
+        self.assertIn("Traceback", line)
+        self.assertIn("RuntimeError: boom", line)
+
 
 class JsonFormatterTests(unittest.TestCase):
+    def test_json_formatter_contains_required_fields(self) -> None:
+        record = logging.LogRecord("myapp", logging.WARNING, __file__, 123, "hello", None, None)
+        payload = json.loads(JsonFormatter().format(record))
+
+        self.assertIn("timestamp", payload)
+        self.assertEqual(payload["level"], "WARNING")
+        self.assertEqual(payload["logger"], "myapp")
+        self.assertEqual(payload["message"], "hello")
+        self.assertIsInstance(payload["process"], int)
+        self.assertIsInstance(payload["thread"], str)
+        self.assertIn("test_wlogger.py:123", payload["file"])
+
     def test_standard_attrs_are_not_leaked_as_extra_fields(self) -> None:
         record = logging.LogRecord("myapp", logging.INFO, __file__, 1, "hello", None, None)
         payload = json.loads(JsonFormatter().format(record))
@@ -146,6 +229,17 @@ class JsonFormatterTests(unittest.TestCase):
         payload = json.loads(JsonFormatter().format(record))
 
         self.assertEqual(payload["request_id"], "abc-123")
+
+    def test_exc_info_is_rendered_in_json_field(self) -> None:
+        try:
+            raise ValueError("bad-input")
+        except ValueError:
+            record = logging.LogRecord(
+                "myapp", logging.ERROR, __file__, 33, "oops", None, sys.exc_info()
+            )
+        payload = json.loads(JsonFormatter().format(record))
+        self.assertIn("exc_info", payload)
+        self.assertIn("ValueError: bad-input", payload["exc_info"])
 
 
 if __name__ == "__main__":

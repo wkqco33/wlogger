@@ -46,6 +46,11 @@ def setup(
         backup_count: 보관할 로테이션 파일 수. 기본 5개.
         console_stream: 콘솔 출력 대상 스트림. 생략 시 sys.stderr.
     """
+    if max_bytes <= 0:
+        raise ValueError(f"max_bytes must be > 0, got {max_bytes}")
+    if backup_count < 0:
+        raise ValueError(f"backup_count must be >= 0, got {backup_count}")
+
     root_lvl = _to_numeric(level)
     c_lvl = _to_numeric(console_level) if console_level else root_lvl
     f_lvl = _to_numeric(file_level) if file_level else root_lvl

@@ -2,7 +2,7 @@
 
 Lightweight Python logging library with color console and JSON file output.
 
-외부 의존성 없이 Python 표준 라이브러리만 사용하며, 내부 pypiserver를 통해 배포됩니다.
+외부 의존성 없이 Python 표준 라이브러리만 사용합니다.
 
 ## Features
 
@@ -15,9 +15,9 @@ Lightweight Python logging library with color console and JSON file output.
 ## Installation
 
 ```bash
-uv add wlogger --index-url http://<pypiserver-host>
-# 또는
-pip install wlogger --index-url http://<pypiserver-host>
+uv add wlogger
+# or
+pip install wlogger
 ```
 
 ## Usage
@@ -117,7 +117,7 @@ uv run pytest
 
 `pytest`는 `dev` 의존성 그룹으로만 선언되어 있다. `uv run pytest`는 프로젝트 전용 `.venv`(현재 패키지가 editable로 설치된 환경)에서 실행되므로, 시스템에 별도로 설치된 `pytest`와 섞이지 않는다.
 
-## Build & Deploy
+## Build & Publish (PyPI)
 
 ### 1. 빌드
 
@@ -125,55 +125,46 @@ uv run pytest
 uv build
 ```
 
-`dist/` 디렉토리에 두 파일이 생성됩니다:
+`dist/` 디렉토리에 wheel/sdist 파일이 생성됩니다:
 
 ```
 dist/
-├── wlogger-0.1.0-py3-none-any.whl
-└── wlogger-0.1.0.tar.gz
+├── wlogger-<version>-py3-none-any.whl
+└── wlogger-<version>.tar.gz
 ```
 
-### 2. pypiserver 업로드
+### 2. TestPyPI 업로드 (권장)
 
 ```bash
 uv publish \
-  --publish-url http://<pypiserver-host>/simple/ \
-  --username <user> \
-  --password <pass> \
-  --no-attestations \
-  --allow-insecure-host <pypiserver-host>
+  --publish-url https://test.pypi.org/legacy/ \
+  --token <testpypi-token>
 ```
 
-| 옵션 | 이유 |
-|------|------|
-| `--publish-url` | pypiserver의 업로드 엔드포인트 (보통 `/simple/`) |
-| `--no-attestations` | pypiserver는 attestation을 지원하지 않아 기본값이면 오류 발생 |
-| `--allow-insecure-host` | HTTP(비HTTPS) 호스트에 연결할 때 필요 |
-
-인증 정보는 환경변수로 관리하는 것을 권장합니다:
+업로드 후 설치 확인:
 
 ```bash
-export UV_PUBLISH_USERNAME=<user>
-export UV_PUBLISH_PASSWORD=<pass>
-
-uv publish \
-  --publish-url http://<pypiserver-host>/simple/ \
-  --no-attestations \
-  --allow-insecure-host <pypiserver-host>
+pip install -i https://test.pypi.org/simple/ wlogger
 ```
 
-### 3. 사용 측 프로젝트에서 설치
+### 3. PyPI 업로드
 
 ```bash
-uv add wlogger \
-  --index-url http://<pypiserver-host>/simple/ \
-  --allow-insecure-host <pypiserver-host>
+uv publish --token <pypi-token>
 ```
 
-또는 `pyproject.toml`에 인덱스를 등록해두면 매번 플래그 없이 사용할 수 있습니다:
+토큰은 환경변수로 관리하는 것을 권장합니다:
 
-```toml
-[[tool.uv.index]]
-name = "internal"
-url = "http://<pypiserver-host>/simple/"
+```bash
+export UV_PUBLISH_TOKEN=<pypi-token>
+
+uv publish
+```
+
+### 4. 설치
+
+```bash
+uv add wlogger
+# or
+pip install wlogger
 ```
