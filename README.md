@@ -168,3 +168,19 @@ uv add wpylog
 # or
 pip install wpylog
 ```
+
+## GitHub Actions
+
+- `CI`: `master` 브랜치 push 및 PR에서 테스트와 빌드를 수행합니다.
+- `Publish to PyPI`: GitHub Release published 이벤트 또는 수동 실행 시 테스트 후 PyPI에 배포합니다.
+
+PyPI 배포용 GitHub Actions secret:
+
+- `PYPI_API_TOKEN`: PyPI에서 발급한 API token
+
+권장 릴리즈 절차:
+
+1. 로컬에서 버전 업데이트
+2. `uv run pytest -q && uv build`
+3. GitHub Release 생성
+4. `Publish to PyPI` 워크플로우 실행 결과 확인
