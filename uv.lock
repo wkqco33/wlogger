@@ -64,7 +64,7 @@ wheels = [
 ]
 
 [[package]]
-name = "wlogger"
+name = "wpylog"
 version = "0.2.0"
 source = { editable = "." }
 

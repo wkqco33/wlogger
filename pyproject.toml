@@ -1,5 +1,5 @@
 [project]
-name = "wlogger"
+name = "wpylog"
 version = "0.2.0"
 description = "Lightweight Python logging library with color console and JSON file output"
 readme = "README.md"
@@ -29,6 +29,9 @@ Issues = "https://github.com/wkqco33/wlogger/issues"
 [build-system]
 requires = ["uv_build>=0.12.0,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "wlogger"
 
 [dependency-groups]
 dev = [

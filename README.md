@@ -1,4 +1,4 @@
-# wlogger
+# wpylog
 
 Lightweight Python logging library with color console and JSON file output.
 
@@ -15,9 +15,9 @@ Lightweight Python logging library with color console and JSON file output.
 ## Installation
 
 ```bash
-uv add wlogger
+uv add wpylog
 # or
-pip install wlogger
+pip install wpylog
 ```
 
 ## Usage
@@ -129,8 +129,8 @@ uv build
 
 ```
 dist/
-├── wlogger-<version>-py3-none-any.whl
-└── wlogger-<version>.tar.gz
+├── wpylog-<version>-py3-none-any.whl
+└── wpylog-<version>.tar.gz
 ```
 
 ### 2. TestPyPI 업로드 (권장)
@@ -144,7 +144,7 @@ uv publish \
 업로드 후 설치 확인:
 
 ```bash
-pip install -i https://test.pypi.org/simple/ wlogger
+pip install -i https://test.pypi.org/simple/ wpylog
 ```
 
 ### 3. PyPI 업로드
@@ -164,7 +164,7 @@ uv publish
 ### 4. 설치
 
 ```bash
-uv add wlogger
+uv add wpylog
 # or
-pip install wlogger
+pip install wpylog
 ```
