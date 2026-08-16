@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import logging.handlers
 import os
@@ -17,7 +19,7 @@ def _supports_color(stream: TextIO) -> bool:
 
 def make_console_handler(
     level: int = logging.DEBUG, *, stream: TextIO | None = None
-) -> logging.StreamHandler:
+) -> logging.StreamHandler[TextIO]:
     # Logs are diagnostic output, not program output: default to stderr so
     # stdout stays clean for whatever the application actually produces
     # (piping, scripting, JSON output, ...).

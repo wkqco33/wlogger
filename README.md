@@ -28,9 +28,9 @@ import wlogger
 # 프로세스 시작 시 한 번만 호출
 wlogger.setup(
     level="INFO",
-    log_file="app.log",   # 생략 시 콘솔만 출력
+    log_file="app.log",  # 생략 시 콘솔만 출력
     max_bytes=10 * 1024 * 1024,  # 기본 10MB
-    backup_count=5,              # 기본 5개
+    backup_count=5,  # 기본 5개
 )
 
 # 각 모듈에서 로거 획득

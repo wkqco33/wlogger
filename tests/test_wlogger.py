@@ -8,9 +8,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import TextIO, cast, override
 from unittest.mock import patch
 
 import wlogger
+from wlogger import LogLevel
 from wlogger.formatter import ColorFormatter, JsonFormatter
 
 
@@ -19,13 +21,19 @@ class _FakeStream(io.StringIO):
 
     def __init__(self, isatty: bool) -> None:
         super().__init__()
-        self._isatty = isatty
+        self._isatty: bool = isatty
 
+    @override
     def isatty(self) -> bool:
         return self._isatty
 
 
+def _json_payload(text: str) -> dict[str, object]:
+    return cast(dict[str, object], json.loads(text))
+
+
 class SetupTests(unittest.TestCase):
+    @override
     def tearDown(self) -> None:
         root = logging.getLogger()
         for handler in root.handlers:
@@ -35,7 +43,7 @@ class SetupTests(unittest.TestCase):
 
     def test_invalid_level_raises_value_error(self) -> None:
         with self.assertRaises(ValueError):
-            wlogger.setup(level="BOGUS")
+            wlogger.setup(level=cast(LogLevel, cast(object, "BOGUS")))
 
     def test_non_positive_max_bytes_raises_value_error(self) -> None:
         with self.assertRaises(ValueError):
@@ -48,8 +56,13 @@ class SetupTests(unittest.TestCase):
     def test_console_handler_defaults_to_stderr(self) -> None:
         wlogger.setup(level="INFO")
         root = logging.getLogger()
-        handler = next(h for h in root.handlers if isinstance(h, logging.StreamHandler))
-        self.assertIs(handler.stream, __import__("sys").stderr)
+        handlers = (
+            cast(logging.StreamHandler[TextIO], h)
+            for h in root.handlers
+            if isinstance(h, logging.StreamHandler)
+        )
+        handler = next(handlers)
+        self.assertIs(handler.stream, sys.stderr)
 
     def test_console_stream_override_is_used(self) -> None:
         stream = _FakeStream(isatty=False)
@@ -72,7 +85,7 @@ class SetupTests(unittest.TestCase):
     def test_color_enabled_for_tty_stream(self) -> None:
         stream = _FakeStream(isatty=True)
         with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("NO_COLOR", None)
+            _ = os.environ.pop("NO_COLOR", None)
             wlogger.setup(level="INFO", console_stream=stream)
             wlogger.get_logger("test.color.tty").warning("careful")
 
@@ -93,7 +106,7 @@ class SetupTests(unittest.TestCase):
             wlogger.get_logger("test.file").info("stored", extra={"request_id": "abc"})
 
             line = log_path.read_text(encoding="utf-8").strip().splitlines()[-1]
-            payload = json.loads(line)
+            payload = _json_payload(line)
 
         self.assertEqual(payload["message"], "stored")
         self.assertEqual(payload["request_id"], "abc")
@@ -135,14 +148,21 @@ class SetupTests(unittest.TestCase):
 
         self.assertNotIn("info-only-file", stream.getvalue())
         self.assertIn("error-both", stream.getvalue())
-        file_payloads = [json.loads(line) for line in file_lines]
+        file_payloads: list[dict[str, object]] = [
+            _json_payload(line) for line in file_lines
+        ]
         self.assertIn("info-only-file", [p["message"] for p in file_payloads])
         self.assertIn("error-both", [p["message"] for p in file_payloads])
 
     def test_root_level_uses_lowest_when_file_logging_is_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = Path(tmpdir, "app.log")
-            wlogger.setup(level="WARNING", console_level="ERROR", file_level="DEBUG", log_file=str(log_path))
+            wlogger.setup(
+                level="WARNING",
+                console_level="ERROR",
+                file_level="DEBUG",
+                log_file=str(log_path),
+            )
             root = logging.getLogger()
         self.assertEqual(root.level, logging.DEBUG)
 
@@ -203,8 +223,10 @@ class ColorFormatterTests(unittest.TestCase):
 
 class JsonFormatterTests(unittest.TestCase):
     def test_json_formatter_contains_required_fields(self) -> None:
-        record = logging.LogRecord("myapp", logging.WARNING, __file__, 123, "hello", None, None)
-        payload = json.loads(JsonFormatter().format(record))
+        record = logging.LogRecord(
+            "myapp", logging.WARNING, __file__, 123, "hello", None, None
+        )
+        payload = _json_payload(JsonFormatter().format(record))
 
         self.assertIn("timestamp", payload)
         self.assertEqual(payload["level"], "WARNING")
@@ -212,11 +234,13 @@ class JsonFormatterTests(unittest.TestCase):
         self.assertEqual(payload["message"], "hello")
         self.assertIsInstance(payload["process"], int)
         self.assertIsInstance(payload["thread"], str)
-        self.assertIn("test_wlogger.py:123", payload["file"])
+        self.assertIn("test_wlogger.py:123", cast(str, payload["file"]))
 
     def test_standard_attrs_are_not_leaked_as_extra_fields(self) -> None:
-        record = logging.LogRecord("myapp", logging.INFO, __file__, 1, "hello", None, None)
-        payload = json.loads(JsonFormatter().format(record))
+        record = logging.LogRecord(
+            "myapp", logging.INFO, __file__, 1, "hello", None, None
+        )
+        payload = _json_payload(JsonFormatter().format(record))
 
         # taskName (added to LogRecord in Python 3.12) and other stdlib
         # attributes must not show up as noise in every log line.
@@ -224,9 +248,11 @@ class JsonFormatterTests(unittest.TestCase):
             self.assertNotIn(noisy_key, payload)
 
     def test_extra_fields_are_preserved(self) -> None:
-        record = logging.LogRecord("myapp", logging.INFO, __file__, 1, "hello", None, None)
+        record = logging.LogRecord(
+            "myapp", logging.INFO, __file__, 1, "hello", None, None
+        )
         record.request_id = "abc-123"
-        payload = json.loads(JsonFormatter().format(record))
+        payload = _json_payload(JsonFormatter().format(record))
 
         self.assertEqual(payload["request_id"], "abc-123")
 
@@ -237,10 +263,10 @@ class JsonFormatterTests(unittest.TestCase):
             record = logging.LogRecord(
                 "myapp", logging.ERROR, __file__, 33, "oops", None, sys.exc_info()
             )
-        payload = json.loads(JsonFormatter().format(record))
+        payload = _json_payload(JsonFormatter().format(record))
         self.assertIn("exc_info", payload)
-        self.assertIn("ValueError: bad-input", payload["exc_info"])
+        self.assertIn("ValueError: bad-input", cast(str, payload["exc_info"]))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

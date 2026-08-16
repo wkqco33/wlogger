@@ -3,7 +3,7 @@ from typing import Literal, TextIO
 
 from .handler import make_console_handler, make_file_handler
 
-__all__ = ["setup", "get_logger"]
+__all__ = ["get_logger", "setup"]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -71,9 +71,7 @@ def setup(
 
     # 파일 핸들러 추가 (설정된 경우)
     if log_file is not None:
-        root.addHandler(
-            make_file_handler(log_file, f_lvl, max_bytes, backup_count)
-        )
+        root.addHandler(make_file_handler(log_file, f_lvl, max_bytes, backup_count))
 
 
 def get_logger(name: str) -> logging.Logger:
