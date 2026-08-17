@@ -13,8 +13,7 @@ _LEVEL_COLORS = {
     logging.CRITICAL: "\033[1;31m",  # 굵은 빨강
 }
 
-# "CRITICAL" is the longest level name (8 chars); pad every level to that
-# width so columns line up, matching the format documented in README.md.
+# 콘솔 출력 정렬을 위한 최대 레벨 이름 길이
 _LEVEL_WIDTH = max(len(name) for name in logging.getLevelNamesMapping())
 
 

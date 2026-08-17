@@ -7,9 +7,7 @@ __all__ = ["get_logger", "setup"]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
-# Explicit rather than routing through logging.getLevelName(), whose
-# name -> number direction is a legacy, easy-to-misuse overload of the same
-# function that also does number -> name.
+# 로그 레벨 매핑 (문자열 -> 정수)
 _LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
@@ -57,9 +55,7 @@ def setup(
 
     root = logging.getLogger()
     for handler in root.handlers:
-        # Close before dropping the reference so a re-configured file
-        # handler (e.g. RotatingFileHandler) doesn't leak its file
-        # descriptor until garbage collection gets around to it.
+        # 파일 디스크립터 누수 방지를 위해 참조 해제 전 핸들러 종료
         handler.close()
     root.handlers.clear()
 

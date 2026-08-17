@@ -20,9 +20,7 @@ def _supports_color(stream: TextIO) -> bool:
 def make_console_handler(
     level: int = logging.DEBUG, *, stream: TextIO | None = None
 ) -> logging.StreamHandler[TextIO]:
-    # Logs are diagnostic output, not program output: default to stderr so
-    # stdout stays clean for whatever the application actually produces
-    # (piping, scripting, JSON output, ...).
+    # 진단용 로그가 애플리케이션의 stdout 출력과 섞이지 않도록 stderr 기본 사용
     target = stream if stream is not None else sys.stderr
     handler = logging.StreamHandler(target)
     handler.setLevel(level)
