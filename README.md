@@ -1,6 +1,7 @@
-# wpylog
+# wpylog (import name: `wlogger`)
 
-Lightweight Python logging library with color console and JSON file output.
+Lightweight Python logging library with color console and JSON file output. The
+package is installed as `wpylog` and imported as `wlogger`.
 
 외부 의존성 없이 Python 표준 라이브러리만 사용합니다.
 
@@ -48,6 +49,9 @@ except ZeroDivisionError:
     logger.critical("치명적 오류", exc_info=True)
 ```
 
+`extra`에 JSON 기본 타입이 아닌 값이 포함된 경우 기본적으로 `str`로
+변환합니다. 직접 변환 정책을 지정하려면 `json_default`를 전달합니다.
+
 ### 콘솔 출력 형식
 
 ```
@@ -60,10 +64,13 @@ except ZeroDivisionError:
 ### 파일 출력 형식 (JSON Lines)
 
 ```json
-{"timestamp": "2026-04-07T12:00:00", "level": "INFO", "logger": "myapp", "message": "서버 시작"}
-{"timestamp": "2026-04-07T12:00:00", "level": "ERROR", "logger": "myapp", "message": "요청 처리 실패"}
-{"timestamp": "2026-04-07T12:00:00", "level": "CRITICAL", "logger": "myapp", "message": "치명적 오류", "exc_info": "Traceback ..."}
+{"timestamp": "2026-04-07T03:00:00.000Z", "level": "INFO", "logger": "myapp", "message": "서버 시작"}
+{"timestamp": "2026-04-07T03:00:00.000Z", "level": "ERROR", "logger": "myapp", "message": "요청 처리 실패"}
+{"timestamp": "2026-04-07T03:00:00.000Z", "level": "CRITICAL", "logger": "myapp", "message": "치명적 오류", "exc_info": "Traceback ..."}
 ```
+
+JSON timestamp는 UTC 기준이며 밀리초를 포함합니다. `exc_info=True`와
+`stack_info=True`를 사용하면 각각 `exc_info`와 `stack_info` 필드가 추가됩니다.
 
 ## API
 
@@ -78,10 +85,13 @@ def setup(
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
     console_stream: TextIO | None = None,
+    json_default: Callable[[object], object] | None = str,
 ) -> None
 ```
 
-루트 로거를 설정합니다. 재호출 시 기존 핸들러를 닫고 안전하게 교체합니다.
+루트 로거를 설정합니다. 재호출 시 `wlogger`가 생성한 핸들러만 닫고
+교체하며, 다른 라이브러리의 루트 핸들러는 유지합니다. 새 파일 핸들러
+생성에 실패하면 기존 설정도 유지합니다.
 
 | 파라미터 | 기본값 | 설명 |
 |---------|--------|------|
@@ -92,6 +102,7 @@ def setup(
 | `max_bytes` | `10485760` | 로그 파일 최대 크기 (bytes) |
 | `backup_count` | `5` | 보관할 로테이션 파일 수 |
 | `console_stream` | `None` | 콘솔 출력 대상. 생략 시 `sys.stderr` |
+| `json_default` | `str` | JSON 기본 타입이 아닌 `extra` 값의 변환 함수 |
 
 콘솔 핸들러는 진단용 로그가 표준 출력(`stdout`) 파이프나 데이터 스트림과 섞이지 않도록 기본적으로 **stderr**로 출력합니다.
 

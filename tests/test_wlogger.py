@@ -61,7 +61,7 @@ class SetupTests(unittest.TestCase):
             for h in root.handlers
             if isinstance(h, logging.StreamHandler)
         )
-        handler = next(handlers)
+        handler = next(h for h in handlers if h.stream is sys.stderr)
         self.assertIs(handler.stream, sys.stderr)
 
     def test_console_stream_override_is_used(self) -> None:
@@ -111,6 +111,23 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(payload["message"], "stored")
         self.assertEqual(payload["request_id"], "abc")
 
+    def test_json_default_is_applied_to_file_extra_values(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir, "app.log")
+            wlogger.setup(
+                level="INFO",
+                log_file=str(log_path),
+                json_default=lambda value: f"<{value}>",
+            )
+            wlogger.get_logger("test.file.default").info(
+                "stored", extra={"path": Path("app.log")}
+            )
+
+            line = log_path.read_text(encoding="utf-8").strip().splitlines()[-1]
+            payload = _json_payload(line)
+
+        self.assertEqual(payload["path"], "<app.log>")
+
     def test_get_logger_returns_stdlib_logger(self) -> None:
         logger = wlogger.get_logger("test.named")
         self.assertIs(logger, logging.getLogger("test.named"))
@@ -127,6 +144,41 @@ class SetupTests(unittest.TestCase):
             wlogger.setup(level="INFO", log_file=str(log_path))
 
             self.assertIsNone(first_handler.stream)
+
+    def test_setup_preserves_unrelated_root_handlers(self) -> None:
+        stream = _FakeStream(isatty=False)
+        unrelated_handler = logging.StreamHandler(stream)
+        root = logging.getLogger()
+        root.addHandler(unrelated_handler)
+
+        wlogger.setup(level="INFO", console_stream=_FakeStream(isatty=False))
+
+        self.assertIn(unrelated_handler, root.handlers)
+        wlogger.get_logger("test.unrelated").info("kept")
+        self.assertIn("kept", stream.getvalue())
+
+    def test_setup_failure_preserves_existing_configuration(self) -> None:
+        stream = _FakeStream(isatty=False)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_path = Path(tmpdir, "app.log")
+            wlogger.setup(
+                level="INFO",
+                log_file=str(log_path),
+                console_stream=stream,
+            )
+            root = logging.getLogger()
+            existing_handlers = list(root.handlers)
+
+            with self.assertRaises(OSError):
+                wlogger.setup(
+                    level="DEBUG",
+                    log_file=tmpdir,
+                    console_stream=_FakeStream(isatty=False),
+                )
+
+            self.assertEqual(root.handlers, existing_handlers)
+            wlogger.get_logger("test.rollback").info("still configured")
+            self.assertIn("still configured", stream.getvalue())
 
     def test_console_and_file_levels_are_applied_independently(self) -> None:
         stream = _FakeStream(isatty=False)
@@ -220,8 +272,26 @@ class ColorFormatterTests(unittest.TestCase):
         self.assertIn("Traceback", line)
         self.assertIn("RuntimeError: boom", line)
 
+    def test_stack_info_is_rendered_in_console_line(self) -> None:
+        formatter = ColorFormatter(use_color=False)
+        record = self._record(logging.WARNING)
+        record.stack_info = "stack line"
+
+        line = formatter.format(record)
+
+        self.assertIn("stack line", line)
+
 
 class JsonFormatterTests(unittest.TestCase):
+    def test_json_timestamp_is_utc_with_millisecond_precision(self) -> None:
+        record = logging.LogRecord(
+            "myapp", logging.INFO, __file__, 1, "hello", None, None
+        )
+        record.created = 0
+        payload = _json_payload(JsonFormatter().format(record))
+
+        self.assertEqual(payload["timestamp"], "1970-01-01T00:00:00.000Z")
+
     def test_json_formatter_contains_required_fields(self) -> None:
         record = logging.LogRecord(
             "myapp", logging.WARNING, __file__, 123, "hello", None, None
@@ -256,6 +326,16 @@ class JsonFormatterTests(unittest.TestCase):
 
         self.assertEqual(payload["request_id"], "abc-123")
 
+    def test_non_json_extra_values_are_stringified(self) -> None:
+        record = logging.LogRecord(
+            "myapp", logging.INFO, __file__, 1, "hello", None, None
+        )
+        record.path = Path("app.log")
+
+        payload = _json_payload(JsonFormatter().format(record))
+
+        self.assertEqual(payload["path"], "app.log")
+
     def test_exc_info_is_rendered_in_json_field(self) -> None:
         try:
             raise ValueError("bad-input")
@@ -266,6 +346,16 @@ class JsonFormatterTests(unittest.TestCase):
         payload = _json_payload(JsonFormatter().format(record))
         self.assertIn("exc_info", payload)
         self.assertIn("ValueError: bad-input", cast(str, payload["exc_info"]))
+
+    def test_stack_info_is_rendered_in_json_field(self) -> None:
+        record = logging.LogRecord(
+            "myapp", logging.WARNING, __file__, 1, "hello", None, None
+        )
+        record.stack_info = "stack line"
+
+        payload = _json_payload(JsonFormatter().format(record))
+
+        self.assertEqual(payload["stack_info"], "stack line")
 
 
 if __name__ == "__main__":

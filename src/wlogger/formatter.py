@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import ClassVar, cast, override
+from datetime import datetime, timezone
+from typing import Callable, ClassVar, cast, override
 
 _RESET = "\033[0m"
 _BOLD = "\033[1m"
@@ -38,6 +39,8 @@ class ColorFormatter(logging.Formatter):
 
         if record.exc_info:
             line += "\n" + self.formatException(record.exc_info)
+        if record.stack_info:
+            line += "\n" + record.stack_info
 
         return line
 
@@ -71,10 +74,18 @@ class JsonFormatter(logging.Formatter):
         }
     )
 
+    def __init__(
+        self, *, json_default: Callable[[object], object] | None = str
+    ) -> None:
+        super().__init__()
+        self.json_default = json_default
+
     @override
     def format(self, record: logging.LogRecord) -> str:
         data: dict[str, object] = {
-            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "timestamp": datetime.fromtimestamp(
+                record.created, tz=timezone.utc
+            ).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -91,5 +102,12 @@ class JsonFormatter(logging.Formatter):
 
         if record.exc_info:
             data["exc_info"] = self.formatException(record.exc_info)
+        if record.stack_info:
+            data["stack_info"] = record.stack_info
 
-        return json.dumps(data, ensure_ascii=False)
+        return json.dumps(
+            data,
+            ensure_ascii=False,
+            allow_nan=False,
+            default=self.json_default,
+        )
