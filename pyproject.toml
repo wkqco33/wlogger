@@ -1,6 +1,6 @@
 [project]
 name = "wpylog"
-version = "0.2.0"
+version = "0.3.0"
 description = "Lightweight Python logging library with color console and JSON file output"
 readme = "README.md"
 license = "MIT"
