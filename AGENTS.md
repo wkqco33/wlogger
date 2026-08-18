@@ -21,9 +21,10 @@
 
 - `setup()`
   - 잘못된 로그 레벨 입력 예외
+  - 비어 있는 console/file 레벨 입력 예외
   - 파라미터 경계값 검증 (`max_bytes > 0`, `backup_count >= 0`)
   - console/file 레벨 우선순위
-  - 재호출 시 기존 핸들러 close/clear
+  - 재호출 시 기존 핸들러 close/clear 및 루트 레벨 갱신
 - `ColorFormatter`
   - TTY/비TTY/NO_COLOR 분기
   - 레벨 패딩 정렬
@@ -31,6 +32,7 @@
 - `JsonFormatter`
   - 필수 필드 존재 및 타입
   - `extra` 필드 보존
+  - 기본 JSON 필드와 `extra` 키 충돌 격리
   - 표준 속성 누수 방지
   - 예외(`exc_info`) 포함 시 traceback 필드 검증
 - 파일 핸들러

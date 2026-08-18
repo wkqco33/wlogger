@@ -51,6 +51,9 @@ except ZeroDivisionError:
 
 `extra`에 JSON 기본 타입이 아닌 값이 포함된 경우 기본적으로 `str`로
 변환합니다. 직접 변환 정책을 지정하려면 `json_default`를 전달합니다.
+`timestamp`, `level`, `logger`, `message`, `process`, `thread`, `file`처럼
+기본으로 제공되는 필드는 `extra` 값으로 덮어쓸 수 없으며, 충돌한 값은
+`extra` 객체 안에 보존됩니다.
 
 ### 콘솔 출력 형식
 
@@ -69,19 +72,22 @@ except ZeroDivisionError:
 {"timestamp": "2026-04-07T03:00:00.000Z", "level": "CRITICAL", "logger": "myapp", "message": "치명적 오류", "exc_info": "Traceback ..."}
 ```
 
-JSON timestamp는 UTC 기준이며 밀리초를 포함합니다. `exc_info=True`와
-`stack_info=True`를 사용하면 각각 `exc_info`와 `stack_info` 필드가 추가됩니다.
+JSON timestamp는 UTC 기준이며 밀리초를 포함합니다. 콘솔 timestamp는
+시스템 로컬 시간입니다. `exc_info=True`와 `stack_info=True`를 사용하면
+각각 `exc_info`와 `stack_info` 필드가 추가됩니다.
 
 ## API
 
 ### `wlogger.setup()`
 
 ```python
+from wlogger import LogLevel
+
 def setup(
-    level: str = "INFO",
+    level: LogLevel = "INFO",
     log_file: str | None = None,
-    console_level: str | None = None,
-    file_level: str | None = None,
+    console_level: LogLevel | None = None,
+    file_level: LogLevel | None = None,
     max_bytes: int = 10 * 1024 * 1024,
     backup_count: int = 5,
     console_stream: TextIO | None = None,
@@ -124,6 +130,10 @@ uv sync
 
 # 테스트 실행
 uv run pytest
+
+# 정적 품질 검사
+uv run ruff check .
+uv run ruff format --check .
 ```
 
 ## Build & Publish (PyPI)

@@ -1,6 +1,6 @@
 [project]
 name = "wpylog"
-version = "0.3.0"
+version = "0.3.1"
 description = "Lightweight Python logging library with color console and JSON file output"
 readme = "README.md"
 license = "MIT"
@@ -36,4 +36,12 @@ module-name = "wlogger"
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.3",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

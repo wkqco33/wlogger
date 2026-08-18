@@ -45,6 +45,14 @@ class SetupTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             wlogger.setup(level=cast(LogLevel, cast(object, "BOGUS")))
 
+    def test_empty_console_level_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            wlogger.setup(level="INFO", console_level="")
+
+    def test_empty_file_level_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError):
+            wlogger.setup(level="INFO", file_level="")
+
     def test_non_positive_max_bytes_raises_value_error(self) -> None:
         with self.assertRaises(ValueError):
             wlogger.setup(level="INFO", log_file="app.log", max_bytes=0)
@@ -157,6 +165,16 @@ class SetupTests(unittest.TestCase):
         wlogger.get_logger("test.unrelated").info("kept")
         self.assertIn("kept", stream.getvalue())
 
+    def test_root_level_preserves_lower_unrelated_handler_level(self) -> None:
+        unrelated_handler = logging.StreamHandler(io.StringIO())
+        unrelated_handler.setLevel(logging.DEBUG)
+        root = logging.getLogger()
+        root.addHandler(unrelated_handler)
+
+        wlogger.setup(level="ERROR", console_stream=_FakeStream(isatty=False))
+
+        self.assertEqual(root.level, logging.DEBUG)
+
     def test_setup_failure_preserves_existing_configuration(self) -> None:
         stream = _FakeStream(isatty=False)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -217,6 +235,12 @@ class SetupTests(unittest.TestCase):
             )
             root = logging.getLogger()
         self.assertEqual(root.level, logging.DEBUG)
+
+    def test_reconfiguring_updates_root_level(self) -> None:
+        wlogger.setup(level="DEBUG")
+        wlogger.setup(level="ERROR")
+
+        self.assertEqual(logging.getLogger().level, logging.ERROR)
 
     def test_file_rotation_creates_backup_files(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -325,6 +349,22 @@ class JsonFormatterTests(unittest.TestCase):
         payload = _json_payload(JsonFormatter().format(record))
 
         self.assertEqual(payload["request_id"], "abc-123")
+
+    def test_extra_fields_cannot_overwrite_canonical_fields(self) -> None:
+        record = logging.LogRecord(
+            "myapp", logging.INFO, __file__, 1, "hello", None, None
+        )
+        record.level = "spoofed"
+        record.timestamp = "spoofed"
+
+        payload = _json_payload(JsonFormatter().format(record))
+
+        self.assertEqual(payload["level"], "INFO")
+        self.assertNotEqual(payload["timestamp"], "spoofed")
+        self.assertEqual(
+            cast(dict[str, object], payload["extra"]),
+            {"level": "spoofed", "timestamp": "spoofed"},
+        )
 
     def test_non_json_extra_values_are_stringified(self) -> None:
         record = logging.LogRecord(

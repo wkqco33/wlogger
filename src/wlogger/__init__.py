@@ -1,10 +1,11 @@
 import logging
+from collections.abc import Callable
 from contextlib import ExitStack
-from typing import Callable, Literal, TextIO
+from typing import Literal, TextIO
 
 from .handler import is_wlogger_handler, make_console_handler, make_file_handler
 
-__all__ = ["get_logger", "setup"]
+__all__ = ["LogLevel", "get_logger", "setup"]
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
@@ -53,10 +54,15 @@ def setup(
         raise ValueError(f"backup_count must be >= 0, got {backup_count}")
 
     root_lvl = _to_numeric(level)
-    c_lvl = _to_numeric(console_level) if console_level else root_lvl
-    f_lvl = _to_numeric(file_level) if file_level else root_lvl
+    c_lvl = _to_numeric(console_level) if console_level is not None else root_lvl
+    f_lvl = _to_numeric(file_level) if file_level is not None else root_lvl
 
     root = logging.getLogger()
+    unrelated_levels = [
+        handler.level
+        for handler in root.handlers
+        if not is_wlogger_handler(handler) and handler.level != logging.NOTSET
+    ]
     with ExitStack() as stack:
         new_handlers = [
             make_console_handler(c_lvl, stream=console_stream),
@@ -81,8 +87,9 @@ def setup(
         for handler in new_handlers:
             root.addHandler(handler)
 
-        # 루트 레벨은 핸들러에서 필요한 가장 낮은 레벨로 설정한다.
-        root.setLevel(min(root.level, c_lvl, f_lvl) if log_file else min(root.level, c_lvl))
+        # 기존 외부 핸들러가 놓치지 않도록 필요한 최소 레벨을 유지한다.
+        handler_levels = [c_lvl, f_lvl] if log_file else [c_lvl]
+        root.setLevel(min([*handler_levels, *unrelated_levels]))
         stack.pop_all()
 
 

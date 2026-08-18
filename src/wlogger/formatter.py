@@ -1,7 +1,8 @@
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Callable, ClassVar, cast, override
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import ClassVar, cast, override
 
 _RESET = "\033[0m"
 _BOLD = "\033[1m"
@@ -46,33 +47,9 @@ class ColorFormatter(logging.Formatter):
 
 
 class JsonFormatter(logging.Formatter):
-    # 표준 속성 셋을 클래스 상수로 정의하여 매번 생성하지 않도록 최적화
     _STANDARD_ATTRS: ClassVar[frozenset[str]] = frozenset(
-        {
-            "name",
-            "msg",
-            "args",
-            "levelname",
-            "levelno",
-            "pathname",
-            "filename",
-            "module",
-            "exc_info",
-            "exc_text",
-            "stack_info",
-            "lineno",
-            "funcName",
-            "created",
-            "msecs",
-            "relativeCreated",
-            "thread",
-            "threadName",
-            "processName",
-            "process",
-            "message",
-            "taskName",
-        }
-    )
+        vars(logging.LogRecord("", logging.NOTSET, "", 0, "", (), None))
+    ) | {"message"}
 
     def __init__(
         self, *, json_default: Callable[[object], object] | None = str
@@ -83,9 +60,9 @@ class JsonFormatter(logging.Formatter):
     @override
     def format(self, record: logging.LogRecord) -> str:
         data: dict[str, object] = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, tz=timezone.utc
-            ).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC)
+            .isoformat(timespec="milliseconds")
+            .replace("+00:00", "Z"),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -94,11 +71,17 @@ class JsonFormatter(logging.Formatter):
             "file": f"{record.filename}:{record.lineno}",
         }
 
-        # record.__dict__에서 표준 속성이 아닌 것들(extra)을 추출하여 포함
         record_data = cast(dict[str, object], record.__dict__)
+        extra: dict[str, object] = {}
         for key, value in record_data.items():
             if key not in self._STANDARD_ATTRS:
-                data[key] = value
+                if key in data or key == "extra":
+                    extra[key] = value
+                else:
+                    data[key] = value
+
+        if extra:
+            data["extra"] = extra
 
         if record.exc_info:
             data["exc_info"] = self.formatException(record.exc_info)
